@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script>
+    /* Keeps the page hidden until script.js has decided between Setup and Dashboard.
+       The 8 second fallback only matters if script.js fails to load at all. */
+    document.documentElement.className += " booting";
+    window.setTimeout(function () {
+      document.documentElement.className = document.documentElement.className.replace(/\bbooting\b/g, "");
+    }, 8000);
+  </script>
+  <meta name="description" content="Monetra - Manage Money. Find Your Focus.">
+  <meta name="theme-color" content="#153D32">
+  <meta name="apple-mobile-web-app-title" content="Monetra">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2064%2064'%3E%3Cdefs%3E%3ClinearGradient%20id='g'%20x1='0'%20y1='0'%20x2='1'%20y2='1'%3E%3Cstop%20offset='0'%20stop-color='%23153D32'/%3E%3Cstop%20offset='1'%20stop-color='%23153D32'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20width='64'%20height='64'%20rx='16'%20fill='url(%23g)'/%3E%3Cpath%20d='M17%2046V20l15%2017%2015-17v26'%20fill='none'%20stroke='%23F4F5F0'%20stroke-width='5.5'%20stroke-linecap='round'%20stroke-linejoin='round'/%3E%3Ccircle%20cx='32'%20cy='26.5'%20r='3.8'%20fill='%23F4F5F0'/%3E%3C/svg%3E">
+  <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2064%2064'%3E%3Cdefs%3E%3ClinearGradient%20id='g'%20x1='0'%20y1='0'%20x2='1'%20y2='1'%3E%3Cstop%20offset='0'%20stop-color='%23153D32'/%3E%3Cstop%20offset='1'%20stop-color='%23153D32'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20width='64'%20height='64'%20rx='16'%20fill='url(%23g)'/%3E%3Cpath%20d='M17%2046V20l15%2017%2015-17v26'%20fill='none'%20stroke='%23F4F5F0'%20stroke-width='5.5'%20stroke-linecap='round'%20stroke-linejoin='round'/%3E%3Ccircle%20cx='32'%20cy='26.5'%20r='3.8'%20fill='%23F4F5F0'/%3E%3C/svg%3E">
+  <title>Monetra - Manage Money. Find Your Focus.</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css?v=3">
+  <script src="script.js?v=3" defer></script>
+</head>
+<body>
+
+  <header class="mobile-header" aria-label="Monetra">
+    <span class="mobile-logo" aria-hidden="true"></span>
+    <span class="mobile-name">Monetra</span>
+  </header>
+
+  <!-- ===== FIRST-TIME SETUP (new users only) ===== -->
+  <section id="setup-screen" class="setup-screen" aria-labelledby="setup-title" hidden>
+    <div class="setup-card">
+      <div class="setup-brand" aria-hidden="true"></div>
+      <h1 id="setup-title">Welcome to Monetra</h1>
+      <p class="setup-lead">Manage Money. Find Your Focus.</p>
+
+      <p id="setup-storage-warning" class="app-banner" role="alert" hidden>Your browser is blocking storage, so your data will not be saved after you close this page.</p>
+
+      <form id="setup-form" novalidate>
+        <div class="field">
+          <label for="setup-name">Your name <span class="optional">(optional)</span></label>
+          <input id="setup-name" type="text" maxlength="40" autocomplete="given-name">
+        </div>
+        <div class="setup-row">
+          <div class="field">
+            <label for="setup-currency">Currency <span class="optional">(optional)</span></label>
+            <select id="setup-currency"></select>
+          </div>
+          <div class="field">
+            <label for="setup-day">Month start day</label>
+            <select id="setup-day"></select>
+          </div>
+        </div>
+        <p class="field-hint setup-hint">Defaults: USD ($) and day 1. Change anytime in More &rarr; Settings. Currency only changes the symbol; nothing is converted.</p>
+
+        <details class="setup-optional" id="setup-optional">
+          <summary>Add your first income or expense <span class="optional">(optional)</span></summary>
+          <div class="setup-optional-body">
+            <div class="field">
+              <label for="setup-income-amount">Income amount</label>
+              <input id="setup-income-amount" type="text" inputmode="decimal" autocomplete="off" placeholder="0.00">
+            </div>
+            <div class="field">
+              <label for="setup-income-source">Income source</label>
+              <input id="setup-income-source" type="text" maxlength="60" autocomplete="off" placeholder="For example: Salary">
+            </div>
+            <div class="field">
+              <label for="setup-expense-amount">Expense amount</label>
+              <input id="setup-expense-amount" type="text" inputmode="decimal" autocomplete="off" placeholder="0.00">
+            </div>
+            <div class="field">
+              <label for="setup-expense-category">Expense category</label>
+              <select id="setup-expense-category"></select>
+            </div>
+            <p class="field-hint">Both are dated today. Leave blank to start with nothing.</p>
+          </div>
+        </details>
+
+        <p id="setup-error" class="form-error" role="alert" hidden></p>
+        <div class="setup-actions">
+          <button type="submit" class="btn btn-primary">Get Started</button>
+          <button type="button" class="btn btn-secondary" data-action="skip-setup">Skip for now</button>
+        </div>
+      </form>
+
+      <p class="setup-privacy">Your data stays in this browser on this device. Download a backup now and then from More &rarr; Backup &amp; Restore.</p>
+    </div>
+  </section>
+
+  <!-- ===== NAVIGATION (sidebar on desktop, bottom bar on mobile) ===== -->
+  <nav id="main-nav" aria-label="Main navigation">
+    <div class="nav-brand">Monetra</div>
+    <p class="nav-tagline">Manage Money. Find Your Focus.</p>
+    <ul>
+      <li><a href="#home" data-page="home">Home</a></li>
+      <li><a href="#money" data-page="money">Money</a></li>
+      <li><a href="#budgets" data-page="budgets">Budgets</a></li>
+      <li><a href="#bills" data-page="bills">Bills</a></li>
+      <li><a href="#goals" data-page="goals">Goals</a></li>
+      <li><a href="#debts" data-page="debts">Debts</a></li>
+      <li><a href="#more" data-page="more">More</a></li>
+    </ul>
+  </nav>
+
+  <!-- ===== MAIN CONTENT ===== -->
+  <main id="app">
+
+    <noscript>
+      <div class="app-banner">Monetra needs JavaScript to work. Please turn JavaScript on in your browser.</div>
+    </noscript>
+
+    <!-- HOME -->
+    <section id="home" class="page">
+      <h1>Home</h1>
+      <p id="home-greeting" class="page-sub"></p>
+      <div class="home-tools"><button type="button" id="focus-toggle" class="btn btn-secondary btn-small" data-action="toggle-focus" aria-pressed="false">Focus Mode: Off</button></div>
+      <div id="catchup" class="reminders catchup" hidden></div>
+      <div id="reminders" class="reminders" role="status" hidden></div>
+
+      <div id="safe-to-spend-card" class="card">
+        <h2>Safe to Spend</h2>
+        <p id="safe-to-spend-amount">--</p>
+        <p class="safe-caption">available per day</p>
+        <div class="safe-stats">
+          <div><span>Left This Period</span><strong id="safe-to-spend-total">--</strong></div>
+          <div><span>Days Left</span><strong id="safe-to-spend-days">--</strong></div>
+        </div>
+        <p id="safe-to-spend-note">Add your income to see how much you can safely spend each day.</p>
+        <details class="breakdown">
+          <summary>How is this calculated?</summary>
+          <div id="safe-to-spend-breakdown"></div>
+        </details>
+      </div>
+
+      <div id="quick-add-card" class="card">
+        <h2>Quick Add</h2>
+        <div class="quick-actions">
+          <button type="button" class="quick-btn quick-income" data-action="add-income">Add Income</button>
+          <button type="button" class="quick-btn quick-expense" data-action="add-expense">Add Expense</button>
+          <button type="button" class="quick-btn quick-bill" data-action="add-bill">Add Bill</button>
+          <button type="button" class="quick-btn quick-saving" data-action="add-saving">Add Savings</button>
+        </div>
+      </div>
+
+      <div id="month-summary" class="card">
+        <h2>This Month</h2>
+        <p id="period-label" class="period-label"></p>
+        <div class="summary-row">
+          <div><span>Total Income</span><strong id="summary-income">--</strong></div>
+          <div><span>Total Spent</span><strong id="summary-spent">--</strong></div>
+          <div><span>Remaining</span><strong id="summary-left">--</strong></div>
+        </div>
+        <div id="summary-progress"></div>
+      </div>
+
+      <div id="upcoming-bills" class="card">
+        <h2>Upcoming Bills</h2>
+        <div id="upcoming-bills-list"></div>
+        <p class="field-hint">Reminders show when you open Monetra. Monetra cannot notify you while it is closed.</p>
+      </div>
+
+      <div id="home-goals" class="card">
+        <h2>Savings Goals</h2>
+        <div id="home-goals-list"></div>
+      </div>
+
+      <div id="home-budgets" class="card">
+        <h2>Budgets</h2>
+        <div id="home-budgets-list"></div>
+      </div>
+    </section>
+
+    <!-- MONEY -->
+    <section id="money" class="page" hidden>
+      <h1>Money</h1>
+
+      <div id="income-section" class="card">
+        <div class="card-head">
+          <h2>Income</h2>
+          <button type="button" class="btn btn-add btn-small" data-action="add-income">Add Income</button>
+        </div>
+        <div id="income-list"></div>
+      </div>
+
+      <div id="expenses-section" class="card">
+        <details class="collapse" id="expenses-details">
+          <summary><h2>Expenses</h2><button type="button" class="btn btn-add btn-small" data-action="add-expense">Add Expense</button></summary>
+          <div class="collapse-body">
+            <div class="button-row" id="expenses-tools" hidden>
+              <button type="button" class="btn btn-ghost btn-small btn-danger-text" data-action="delete-all-expenses">Delete All Expenses</button>
+            </div>
+            <div id="expenses-list"></div>
+          </div>
+        </details>
+      </div>
+
+      <div id="history-section" class="card">
+        <details class="collapse" id="history-details" open>
+          <summary><h2>Transaction History</h2></summary>
+          <div class="collapse-body">
+            <div class="filters">
+              <div class="field field-wide">
+                <label for="history-search">Search</label>
+                <input id="history-search" type="search" placeholder="Search by name, category or amount" autocomplete="off">
+              </div>
+              <div class="field">
+                <label for="history-type">Type</label>
+                <select id="history-type">
+                  <option value="">All</option>
+                  <option value="income">Income</option>
+                  <option value="expense">Expenses</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="history-category">Category</label>
+                <select id="history-category"></select>
+              </div>
+              <div class="field">
+                <label for="history-month">Month</label>
+                <input id="history-month" type="month">
+              </div>
+              <div class="field">
+                <label for="history-from">From</label>
+                <input id="history-from" type="date">
+              </div>
+              <div class="field">
+                <label for="history-to">To</label>
+                <input id="history-to" type="date">
+              </div>
+              <div class="field field-wide">
+                <div class="button-row">
+                  <button type="button" id="history-clear" class="btn btn-secondary btn-small">Clear filters</button>
+                  <button type="button" class="btn btn-secondary btn-small" data-action="export-csv">Export CSV</button>
+                </div>
+              </div>
+            </div>
+            <div id="history-list"></div>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <!-- BUDGETS -->
+    <section id="budgets" class="page" hidden>
+      <h1>Budgets</h1>
+
+      <div id="category-budgets-section" class="card">
+        <details class="collapse" open>
+          <summary><h2>Category Budgets</h2><button type="button" class="btn btn-add btn-small" data-action="add-budget">Add Budget</button></summary>
+          <div class="collapse-body"><div id="budgets-list"></div></div>
+        </details>
+      </div>
+
+      <div id="review-section" class="card">
+        <div class="card-head">
+          <h2>Monthly Review</h2>
+          <div class="month-nav">
+            <button type="button" id="review-prev" class="btn btn-secondary btn-small" data-action="review-prev" aria-label="Previous month">&lsaquo;</button>
+            <span id="review-period" class="period-label"></span>
+            <button type="button" id="review-next" class="btn btn-secondary btn-small" data-action="review-next" aria-label="Next month">&rsaquo;</button>
+          </div>
+        </div>
+        <div id="review-content"></div>
+      </div>
+
+      <div id="alerts-section" class="card">
+        <h2>Alerts</h2>
+        <div id="alerts-list"></div>
+      </div>
+
+    </section>
+
+    <!-- BILLS -->
+    <section id="bills" class="page" hidden>
+      <h1>Bills &amp; Subscriptions</h1>
+      <div class="card">
+        <div class="card-head">
+          <h2>Your Bills</h2>
+          <button type="button" class="btn btn-add btn-small" data-action="add-bill">Add Bill</button>
+        </div>
+        <div id="bills-list"></div>
+      </div>
+    </section>
+
+    <!-- GOALS -->
+    <section id="goals" class="page" hidden>
+      <h1>Savings Goals</h1>
+      <div class="card">
+        <div class="card-head">
+          <h2>Your Goals</h2>
+          <button type="button" class="btn btn-add btn-small" data-action="add-goal">Add Goal</button>
+        </div>
+        <div id="goals-list"></div>
+      </div>
+    </section>
+
+    <!-- DEBTS -->
+    <section id="debts" class="page" hidden>
+      <h1>Debt Payoff</h1>
+      <div id="debt-summary" class="card" hidden>
+        <h2>Overview</h2>
+        <div id="debt-summary-body"></div>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <h2>Your Debts</h2>
+          <button type="button" class="btn btn-add btn-small" data-action="add-debt">Add Debt</button>
+        </div>
+        <div id="debts-list"></div>
+      </div>
+    </section>
+
+    <!-- MORE -->
+    <section id="more" class="page" hidden>
+      <h1>More</h1>
+
+      <div id="settings-section" class="card">
+        <h2>Settings</h2>
+        <div id="settings-area">
+          <form id="settings-form" novalidate>
+            <div class="field setting-row">
+              <label for="settings-name">Your name <span class="optional">(optional)</span></label>
+              <input id="settings-name" type="text" maxlength="40" autocomplete="given-name">
+            </div>
+            <div class="field setting-row">
+              <label for="settings-currency">Currency</label>
+              <select id="settings-currency">
+                <option value="USD">USD - US Dollar</option>
+                <option value="EUR">EUR - Euro</option>
+                <option value="GBP">GBP - British Pound</option>
+                <option value="PKR">PKR - Pakistani Rupee</option>
+                <option value="INR">INR - Indian Rupee</option>
+                <option value="AED">AED - UAE Dirham</option>
+                <option value="SAR">SAR - Saudi Riyal</option>
+                <option value="CAD">CAD - Canadian Dollar</option>
+                <option value="AUD">AUD - Australian Dollar</option>
+              </select>
+              <p class="field-hint">Changing currency only changes the symbol. Your amounts are not converted.</p>
+            </div>
+            <div class="field setting-row">
+              <label for="settings-day">Month start day</label>
+              <select id="settings-day"></select>
+              <p class="field-hint">The day your budget month begins, for example the day you get paid.</p>
+            </div>
+            <fieldset class="prefs">
+              <legend>Focus &amp; comfort</legend>
+              <label class="check"><input type="checkbox" id="pref-focus"><span>Focus Mode<small>Home shows only Safe to Spend, what is left and upcoming bills.</small></span></label>
+              <label class="check"><input type="checkbox" id="pref-large"><span>Larger Text<small>Makes text bigger across the app.</small></span></label>
+              <label class="check"><input type="checkbox" id="pref-motion"><span>Reduced Motion<small>Turns off animations. Follows your device setting until you change it here.</small></span></label>
+              <label class="check"><input type="checkbox" id="pref-notify"><span>Browser reminders<small>Optional. Works only while Monetra is open in your browser.</small></span></label>
+              <p class="field-hint">These switches save instantly on this device.</p>
+            </fieldset>
+            <button type="submit" class="btn btn-primary">Save Settings</button>
+          </form>
+        </div>
+      </div>
+
+      <div id="recurring-section" class="card">
+        <details class="collapse">
+          <summary><h2>Manage Recurring</h2></summary>
+          <div class="collapse-body">
+            <p class="muted">A recurring entry adds a real income or expense on each date. Pause it any time. Add one with the Repeat option when you record income or an expense.</p>
+            <div class="button-row"><button type="button" class="btn btn-add btn-small" data-action="add-recurring">Add Recurring</button></div>
+            <div id="recurring-list"></div>
+          </div>
+        </details>
+      </div>
+
+      <div id="export-section" class="card">
+        <h2>Export Data</h2>
+        <p class="muted">Download all your income and expenses as a CSV file. It opens in Excel, Google Sheets and Numbers.</p>
+        <div class="button-row">
+          <button type="button" class="btn btn-primary" data-action="export-csv">Export CSV</button>
+        </div>
+      </div>
+
+      <div id="backup-section" class="card">
+        <h2>Backup &amp; Restore</h2>
+        <div id="backup-area">
+          <p class="muted">Your data is stored only in this browser on this device. It is not synced to other devices. Download a backup before you clear your browser data, change browsers or switch devices.</p>
+          <div class="button-row">
+            <button type="button" class="btn btn-primary" data-action="export-backup">Download Backup</button>
+            <button type="button" class="btn btn-secondary" data-action="restore-backup">Restore from Backup</button>
+            <input type="file" id="restore-file" accept=".json,application/json" hidden>
+          </div>
+        </div>
+      </div>
+
+      <div id="reset-section" class="card">
+        <h2>Start Fresh / Reset All Data</h2>
+        <p class="muted">Erase every income, expense, bill, budget, goal, category and setting stored in this browser. Resetting or clearing your browser data can permanently remove locally stored information unless you have downloaded a backup. Download one first.</p>
+        <div class="button-row">
+          <button type="button" class="btn btn-danger" data-action="reset-all">Start Fresh / Reset All Data</button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ===== ADD / EDIT FORM (popup) ===== -->
+  <dialog id="form-dialog" aria-labelledby="form-title">
+    <form id="entry-form" novalidate>
+      <h2 id="form-title"></h2>
+      <div id="form-fields"></div>
+      <p id="form-error" class="form-error" role="alert" hidden></p>
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-secondary" data-action="close-form">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="form-submit">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ===== CONFIRM DELETE (popup) ===== -->
+  <dialog id="confirm-dialog" aria-labelledby="confirm-title">
+    <form id="confirm-form" novalidate>
+      <h2 id="confirm-title"></h2>
+      <p id="confirm-message" class="confirm-message" hidden></p>
+      <dl id="confirm-summary" class="confirm-summary" hidden></dl>
+      <div id="confirm-removes" class="confirm-box confirm-removes" hidden></div>
+      <div id="confirm-keeps" class="confirm-box confirm-keeps" hidden></div>
+      <div id="confirm-field" class="confirm-field" hidden></div>
+      <p id="confirm-note" class="confirm-note" hidden></p>
+      <p id="confirm-error" class="form-error" role="alert" hidden></p>
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-secondary" id="confirm-cancel" data-action="close-confirm">Cancel</button>
+        <button type="submit" class="btn btn-danger" id="confirm-ok">Delete</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ===== MESSAGE / UNDO ===== -->
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden>
+    <span id="toast-message"></span>
+    <button type="button" id="toast-undo" class="toast-undo" hidden>Undo</button>
+  </div>
+
+</body>
+</html>
