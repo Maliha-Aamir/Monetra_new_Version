@@ -1269,6 +1269,7 @@
     $("income-list").innerHTML = renderPeriodList("income", stats);
     $("expenses-list").innerHTML = renderPeriodList("expense", stats);
     $("expenses-tools").hidden = expensesDeletableInBulk().length === 0;
+    $("income-tools").hidden = incomeRecords().length === 0;
     renderRecurring();
     refreshCategoryFilter();
     renderHistory();
@@ -1310,8 +1311,11 @@
     if (cur.income === 0 && cur.spent === 0) {
       $("review-content").innerHTML = emptyState(
         "Nothing to review yet",
-        "No income or expenses in this period yet. Your overview appears once you add some.",
-        btn("Add First Expense", "add-expense", "btn-add btn-small btn-secondary")
+        incomeRecords().length === 0
+          ? "No income recorded yet. Add your income and expenses and your overview appears here."
+          : "No income or expenses in this period yet. Your overview appears once you add some.",
+        btn("Add Income", "add-income", "btn-add btn-small btn-secondary") + " " +
+        btn("Add Expense", "add-expense", "btn-add btn-small btn-secondary")
       );
       return;
     }
@@ -1331,6 +1335,10 @@
       '<div class="' + (remaining < 0 ? "is-negative" : "") + '"><span>' + (remaining < 0 ? "Beyond income" : "Remaining") +
       "</span><strong>" + formatMoney(Math.abs(remaining)) + "</strong></div></div>";
 
+    if (cur.income === 0) {
+      html += '<p class="review-line">No income is recorded for this period, so there is nothing to compare your spending with. ' +
+        btn("Add Income", "add-income", "btn-add btn-small btn-secondary") + "</p>";
+    }
     if (topId !== null && cur.spent > 0) {
       html += '<p class="review-line">Here\'s where your money went. Most of it went to <strong>' + esc(categoryName(topId)) +
         "</strong>: " + formatMoney(cur.byCat[topId]) + " (" + Math.round(cur.byCat[topId] / cur.spent * 100) + "% of your spending).</p>";
@@ -2645,6 +2653,55 @@
     });
   }
 
+  /* ---- Delete all income ---- */
+  // Always read from the real saved records, never from a stored total.
+  function incomeRecords() {
+    return data.transactions.filter(function (t) { return t.type === "income"; });
+  }
+
+  function deleteAllIncome() {
+    var list = incomeRecords();
+    if (list.length === 0) { showToast("There is no income to delete."); return; }
+
+    var total = 0;
+    list.forEach(function (t) { total += t.amount; });
+    var fromRules = list.filter(function (t) { return t.recurringId; }).length;
+    var activeRules = data.recurring.filter(function (r) { return r.type === "income" && r.active; }).length;
+
+    var keeps = ["All your expenses", "Your bills, budgets, savings goals and debts"];
+    if (activeRules) {
+      keeps.push(plural(activeRules, "active recurring income rule") + ". Future dates will still be added. Pause or delete the rule in Recurring to stop that");
+    }
+
+    openConfirm({
+      title: "Delete all income?",
+      message: "Every income record, in every month, will be removed" +
+        (fromRules ? ", including " + plural(fromRules, "record") + " added by recurring rules" : "") +
+        ". Your expenses and everything else stay unchanged.",
+      summary: [["Income records to delete", String(list.length)], ["Total amount", formatMoney(total)]],
+      removes: [],
+      removesTitle: "Also changed",
+      keeps: keeps,
+      note: "Monthly Review, Home, totals and Safe to Spend update right away. Right after deleting, you can tap Undo.",
+      confirmLabel: "Delete all income",
+      onConfirm: function () {
+        var removedRecords = [];
+        var keptList = [];
+        data.transactions.forEach(function (t, index) {
+          if (t.type === "income") { removedRecords.push({ item: t, index: index }); } else { keptList.push(t); }
+        });
+        if (removedRecords.length === 0) { return; }
+        data.transactions.length = 0;
+        keptList.forEach(function (t) { data.transactions.push(t); });
+
+        commit(plural(removedRecords.length, "income record") + " deleted.", function () {
+          removedRecords.forEach(function (r) { restoreAt(data.transactions, r); });
+          commit("Income restored.");
+        });
+      }
+    });
+  }
+
   /* ---- Delete all expenses ---- */
   // Debt payments belong to Debt Payoff and cannot be deleted one by one in Expenses either,
   // so they are the only expenses this action leaves in place.
@@ -3442,6 +3499,7 @@
         }
         case "delete-transaction": deleteTransaction(id); break;
         case "delete-all-expenses": deleteAllExpenses(); break;
+        case "delete-all-income": deleteAllIncome(); break;
         case "edit-budget": openBudgetForm(id); break;
         case "delete-budget": deleteBudget(id); break;
         case "edit-bill": openBillForm(id); break;
