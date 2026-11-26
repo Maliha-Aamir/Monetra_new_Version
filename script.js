@@ -2,7 +2,7 @@
    MONETRA - script.js
    Navigation, storage, forms, calculations, dashboard,
    recurring entries, safe deletion with confirmation and Undo,
-   record relationships, duplicate income warnings, CSV export,
+   record relationships, duplicate warnings, CSV export,
    backup and restore, first-time setup, reset all data
    ========================================================= */
 
@@ -42,6 +42,10 @@
   var MAX_HISTORY_ROWS = 200;
   var UNDO_MS = 8000;
 
+  // How close (in days) a manual expense must be to a bill payment to count as "possibly the same payment"
+  var BILL_MATCH_DAYS = 14;      // when marking a bill as paid: looks at today and the due date
+  var BILL_EXPENSE_DAYS = 7;     // when adding an expense: looks at existing bill payments
+
   /* ---------------------------------------------------------
      2. APP STATE
      --------------------------------------------------------- */
@@ -53,8 +57,8 @@
   var formatters = {};
   var lastRenderDay = "";
   var catchUpActive = false;   // true once, when someone returns after a few days away
-  var reviewOffset = 0;   // 0 = this budget period, -1 = the one before, ...
   var formSubmitting = false;   // blocks a second submit while one is being processed
+  var billBusy = {};            // ignores repeated taps on the same bill's Paid / Unpaid button
 
   /* ---------------------------------------------------------
      3. SMALL HELPERS
@@ -378,6 +382,7 @@
       if (!billIds[t.billId] || t.type !== "expense") {
         // The bill is gone (or the link makes no sense): keep it as a normal record
         t.billId = "";
+        if (t.adopted) { delete t.adopted; }
         orphaned++;
         return;
       }
@@ -399,6 +404,7 @@
       list.forEach(function (t) {
         if (t !== chosen) {
           t.billId = "";   // a second "payment" for one bill: keep it, but as a normal expense
+          if (t.adopted) { delete t.adopted; }
           extras++;
         }
       });
@@ -660,7 +666,7 @@
   }
 
   /* ---------------------------------------------------------
-     8b. DUPLICATE INCOME DETECTION
+     8b. DUPLICATE DETECTION
      Warns (never blocks) when a manual income and a recurring income
      may be the same money. It only reads data: nothing is deleted,
      merged, skipped or changed. A match needs the SAME amount, a
@@ -756,7 +762,7 @@
       keepsTitle: "Nothing changes automatically",
       keeps: [
         "Your existing records are not deleted, merged or changed",
-        "Add Anyway saves this as a separate income"
+        "Add Anyway saves this as a separate record"
       ],
       confirmLabel: "Add Anyway",
       confirmClass: "btn-primary",
@@ -781,6 +787,9 @@
     return contributed + planRemaining;
   }
 
+  /* Every total comes from the saved transactions, so one payment (a paid bill and its
+     linked expense are ONE transaction) is counted once. Paid bills are inside "spent";
+     only unpaid bills are added on top. */
   function computeStats() {
     var today = todayStr();
     var period = getPeriod(today, data.settings.monthStartDay);
@@ -1260,7 +1269,8 @@
   }
 
   /* ---------------------------------------------------------
-     13. RENDER: BUDGETS (cards, monthly review, alerts)
+     13. RENDER: BUDGETS (category budgets and alerts)
+     The monthly overview lives only on Home.
      --------------------------------------------------------- */
   function budgetBadge(b) {
     if (b.status === "over") {
@@ -1272,89 +1282,7 @@
     return { label: "On track", cls: "badge-ok" };
   }
 
-  function sumPeriod(from, to) {
-    var r = { income: 0, spent: 0, count: 0, byCat: {} };
-    data.transactions.forEach(function (t) {
-      if (t.date < from || t.date > to) { return; }
-      if (t.type === "income") { r.income += t.amount; return; }
-      r.spent += t.amount;
-      r.count += 1;
-      r.byCat[t.categoryId] = (r.byCat[t.categoryId] || 0) + t.amount;
-    });
-    return r;
-  }
-
-  function renderReview(stats) {
-    var per = stats.period;
-    if (reviewOffset < 0) { per = getPeriod(addMonths(stats.period.start, reviewOffset, data.settings.monthStartDay), data.settings.monthStartDay); }
-    var to = per.end < stats.today ? per.end : stats.today;
-    $("review-period").textContent = formatPeriod(per);
-    $("review-prev").disabled = !data.transactions.some(function (t) { return t.date < per.start; });
-    $("review-next").disabled = reviewOffset >= 0;
-    var cur = sumPeriod(per.start, to);
-    if (cur.income === 0 && cur.spent === 0) {
-      $("review-content").innerHTML = emptyState(
-        "Nothing to review yet",
-        incomeRecords().length === 0
-          ? "No income recorded yet. Add your income and expenses and your overview appears here."
-          : "No income or expenses in this period yet. Your overview appears once you add some.",
-        btn("Add Income", "add-income", "btn-add btn-small btn-secondary") + " " +
-        btn("Add Expense", "add-expense", "btn-add btn-small btn-secondary")
-      );
-      return;
-    }
-    var noIncome = cur.income === 0;
-    var remaining = cur.income - cur.spent;
-    var topId = null;
-    Object.keys(cur.byCat).forEach(function (id) {
-      if (topId === null || cur.byCat[id] > cur.byCat[topId]) { topId = id; }
-    });
-    var planned = 0;
-    var budgeted = 0;
-    stats.budgets.forEach(function (b) { planned += b.limit; budgeted += cur.byCat[b.categoryId] || 0; });
-
-    // With no income there is nothing to compare spending with, so no "Beyond income" figure is shown.
-    var html = '<p class="review-lead">Your spending overview is ready.</p>' +
-      '<div class="summary-row">' +
-      "<div><span>Income</span><strong>" + (noIncome ? "None recorded" : formatMoney(cur.income)) + "</strong></div>" +
-      "<div><span>Spending</span><strong>" + formatMoney(cur.spent) + "</strong></div>" +
-      '<div class="' + (!noIncome && remaining < 0 ? "is-negative" : "") + '"><span>' +
-      (noIncome ? "Remaining" : (remaining < 0 ? "Beyond income" : "Remaining")) + "</span><strong>" +
-      (noIncome ? "--" : formatMoney(Math.abs(remaining))) + "</strong></div></div>";
-
-    if (noIncome) {
-      html += '<p class="review-line">No income recorded for this period. ' +
-        btn("Add Income", "add-income", "btn-add btn-small btn-secondary") + "</p>";
-    }
-    if (topId !== null && cur.spent > 0) {
-      html += '<p class="review-line">Here\'s where your money went. Most of it went to <strong>' + esc(categoryName(topId)) +
-        "</strong>: " + formatMoney(cur.byCat[topId]) + " (" + Math.round(cur.byCat[topId] / cur.spent * 100) + "% of your spending).</p>";
-    }
-    if (planned > 0) {
-      var pct = budgeted / planned * 100;
-      html += '<p class="review-line">Budget usage: <strong>' + Math.round(pct) + "%</strong> (" + formatMoney(budgeted) +
-        " of " + formatMoney(planned) + " in budgeted categories)</p>" + progressHTML(pct, pct >= 100 ? "over" : pct >= 80 ? "warn" : "") + (pct < 100 ? '<p class="review-line">You\'ve made progress toward your budget.</p>' : "");
-    }
-
-    // Compare with the same number of days last period, and only when both periods have expenses
-    var prev = getPeriod(addDays(per.start, -1), data.settings.monthStartDay);
-    var prevTo = addDays(prev.start, daysBetween(per.start, to));
-    if (prevTo > prev.end) { prevTo = prev.end; }
-    var before = sumPeriod(prev.start, prevTo);
-    if (before.count > 0 && cur.count > 0) {
-      var diff = cur.spent - before.spent;
-      html += '<p class="review-line">' + (diff < 0
-        ? "You're making progress: " + formatMoney(-diff) + " less spent than over the same days last period."
-        : diff > 0
-          ? "Spending is " + formatMoney(diff) + " higher than over the same days last period. No pressure, this is just your overview."
-          : "Spending matches the same days last period.") + "</p>";
-    }
-    $("review-content").innerHTML = html;
-  }
-
   function renderBudgets(stats) {
-    renderReview(stats);
-
     if (stats.budgets.length === 0) {
       $("budgets-list").innerHTML = emptyState(
         "No category budgets yet",
@@ -1863,7 +1791,8 @@
 
   /* cfg: title, message, summary [[label, value]], removes [text], removesTitle,
           keeps [text], keepsTitle, note, field {label, options, value, hint, type, placeholder},
-          confirmLabel, onConfirm(fieldValue) -> error text or nothing */
+          confirmLabel, onConfirm(fieldValue) -> error text or nothing,
+          onCancel (optional: runs when the Cancel button is pressed; Esc does nothing) */
   function openConfirm(cfg) {
     currentConfirm = cfg;
     $("confirm-title").textContent = cfg.title;
@@ -1991,6 +1920,19 @@
     return found;
   }
 
+  // Warns (never blocks) when a new expense looks like a bill payment that is already in Expenses.
+  // A paid bill already created its own expense, so adding the same amount again would count it twice.
+  function findBillPaymentMatches(amount, date) {
+    var found = [];
+    data.transactions.forEach(function (t) {
+      if (t.type !== "expense" || !t.billId || t.amount !== amount) { return; }
+      if (Math.abs(daysBetween(t.date, date)) > BILL_EXPENSE_DAYS) { return; }
+      var bill = findById(data.bills, t.billId);
+      found.push(formatMoney(t.amount) + ", paid bill " + (bill ? quoted(bill.name) : "") + ", " + formatDate(t.date));
+    });
+    return found;
+  }
+
   function openIncomeForm(id) {
     var t = id ? findById(data.transactions, id) : null;
     if (id && !t) { return; }
@@ -2018,7 +1960,7 @@
 
         function save() {
           var outsideNote = v.date < getPeriod(todayStr(), data.settings.monthStartDay).start
-            ? " It is dated before this budget period, so it is not in This Month or Safe to Spend."
+            ? " It is dated before this budget period, so it is not in the Monthly Overview or Safe to Spend."
             : "";
           if (t) {
             t.amount = amount; t.source = v.source; t.date = v.date;
@@ -2101,14 +2043,17 @@
         if (dateError) { return dateError; }
 
         if (!t) {
+          var billMatches = findBillPaymentMatches(amount, v.date);
           var dupes = findDuplicatesForManualExpense(amount, v.categoryId, v.date);
-          if (dupes.length) {
+          if (billMatches.length || dupes.length) {
             askAboutDuplicateIncome({
               title: "Possible duplicate expense",
-              message: "This expense looks like one a recurring expense already covers. Saving it as well may count the same spending twice.",
+              message: billMatches.length
+                ? "This looks like a bill payment that is already in your expenses. Adding it again counts the same payment twice. To record a bill payment, mark the bill as Paid instead."
+                : "This expense looks like one a recurring expense already covers. Saving it as well may count the same spending twice.",
               summary: [["Category", categoryName(v.categoryId)], ["Amount", formatMoney(amount)], ["Date", formatDate(v.date)]],
-              matchesTitle: "Similar recurring expense",
-              matches: dupes,
+              matchesTitle: billMatches.length ? "Similar bill payment" : "Similar recurring expense",
+              matches: billMatches.concat(dupes),
               onConfirm: function () {
                 closeForm();
                 data.transactions.push({ id: uid(), type: "expense", amount: amount, categoryId: v.categoryId, date: v.date, method: v.method, createdAt: Date.now() });
@@ -2309,10 +2254,13 @@
     return null;
   }
 
-  // Makes the bill and its single payment expense agree. Returns what was removed (for Undo).
+  /* Makes the bill and its single payment expense agree. One bill, one payment expense:
+     if the payment already exists it is updated, never added a second time.
+     A payment that was "adopted" (the user's own expense, linked to the bill) is never
+     deleted when the bill goes back to unpaid: it is only unlinked and kept as a normal expense. */
   function syncBillExpense(bill, wantPaid) {
     var linked = billPaymentTx(bill);
-    var result = { removed: null, created: false };
+    var result = { removed: null, created: false, unlinked: null };
 
     if (wantPaid) {
       if (linked) {
@@ -2330,12 +2278,74 @@
       bill.paid = true;
     } else {
       if (linked) {
-        result.removed = removeById(data.transactions, linked.id);
+        if (linked.adopted) {
+          linked.billId = "";
+          delete linked.adopted;
+          result.unlinked = linked;
+        } else {
+          result.removed = removeById(data.transactions, linked.id);
+        }
       }
       bill.linkedExpenseId = null;
       bill.paid = false;
     }
     return result;
+  }
+
+  // Expenses the user may already have recorded by hand for this bill: same amount, near today or
+  // near the due date, not a bill payment, debt payment or recurring entry. Newest first.
+  function findManualExpenseMatches(bill) {
+    var today = todayStr();
+    return data.transactions.filter(function (t) {
+      if (t.type !== "expense" || t.billId || t.debtId || t.recurringId) { return false; }
+      if (t.amount !== bill.amount) { return false; }
+      return Math.abs(daysBetween(t.date, today)) <= BILL_MATCH_DAYS ||
+        Math.abs(daysBetween(t.date, bill.dueDate)) <= BILL_MATCH_DAYS;
+    }).sort(compareTransactions);
+  }
+
+  /* Marks a bill as paid so the payment is ONE transaction.
+     No matching expense: one linked expense is created. A matching manual expense exists: the person
+     chooses to use it (linked, nothing added) or to create a new one. finish(kind) runs after the
+     bill and its expense are in their final state, kind is "created" or "linked".
+     Returns true while a question is showing (finish runs later), false if it ran straight away. */
+  function markBillPaid(bill, finish) {
+    var matches = findManualExpenseMatches(bill);
+    if (matches.length === 0) {
+      syncBillExpense(bill, true);
+      finish("created");
+      return false;
+    }
+    var m = matches[0];
+    openConfirm({
+      title: "Matching expense found",
+      message: "You already recorded an expense that looks like this payment. Use it, so the payment is counted once, or create a new expense for this bill.",
+      summary: [
+        ["Bill", bill.name],
+        ["Amount", formatMoney(bill.amount)],
+        ["Existing expense", categoryName(m.categoryId) + ", " + formatDate(m.date)]
+      ],
+      keepsTitle: "Your choices",
+      keeps: [
+        "Use existing expense: nothing is added and the payment is counted once",
+        "Create new expense: both expenses are counted"
+      ],
+      confirmLabel: "Use existing expense",
+      confirmClass: "btn-primary",
+      cancelLabel: "Create new expense",
+      onConfirm: function () {
+        m.billId = bill.id;
+        m.adopted = true;
+        bill.linkedExpenseId = m.id;
+        bill.paid = true;
+        finish("linked");
+      },
+      onCancel: function () {
+        syncBillExpense(bill, true);
+        finish("created");
+      }
+    });
+    return true;
   }
 
   function openBillForm(id) {
@@ -2360,7 +2370,7 @@
         { name: "categoryId", label: "Category", type: "select", value: b ? b.categoryId : defaultCategory, options: categoryOptions(), addCategory: true },
         { name: "status", label: "Status", type: "select", value: b && b.paid ? "paid" : "unpaid",
           options: [{ value: "unpaid", label: "Unpaid" }, { value: "paid", label: "Paid" }],
-          hint: "Marking a bill as paid adds one linked expense (dated today). Editing a paid bill keeps that expense in step." }
+          hint: "Paid adds one linked expense, dated today." }
       ],
       onSubmit: function (v) {
         if (!v.name) { return "Please enter the bill name."; }
@@ -2374,6 +2384,14 @@
         var wantPaid = v.status === "paid";
         if (b) {
           b.name = v.name; b.amount = amount; b.dueDate = v.dueDate; b.categoryId = v.categoryId;
+          if (wantPaid && !b.paid) {
+            // Changing an unpaid bill to paid: check for a matching expense first
+            var askedEdit = markBillPaid(b, function () {
+              closeForm();
+              commit("Bill updated.");
+            });
+            return askedEdit ? FORM_PENDING : null;
+          }
           syncBillExpense(b, wantPaid);
           commit("Bill updated.");
         } else {
@@ -2381,9 +2399,18 @@
             id: uid(), name: v.name, amount: amount, dueDate: v.dueDate,
             categoryId: v.categoryId, paid: false, linkedExpenseId: null, createdAt: Date.now()
           };
-          data.bills.push(bill);
-          syncBillExpense(bill, wantPaid);
-          commit("Bill added.");
+          if (!wantPaid) {
+            data.bills.push(bill);
+            commit("Bill added.");
+          } else {
+            // The bill is saved only after the payment is settled, so closing the question never leaves half a record
+            var asked = markBillPaid(bill, function () {
+              closeForm();
+              data.bills.push(bill);
+              commit("Bill added and marked as paid.");
+            });
+            if (asked) { return FORM_PENDING; }
+          }
         }
         return null;
       }
@@ -2719,7 +2746,7 @@
       removes: [],
       removesTitle: "Also changed",
       keeps: keeps,
-      note: "Monthly Review, Home, totals and Safe to Spend update right away. Right after deleting, you can tap Undo.",
+      note: "Monthly Overview, Home, totals and Safe to Spend update right away. Right after deleting, you can tap Undo.",
       confirmLabel: "Delete all income",
       onConfirm: function () {
         var removedRecords = [];
@@ -2816,6 +2843,7 @@
     var bill = findById(data.bills, id);
     if (!bill) { return; }
     var linked = billPaymentTx(bill);
+    var adopted = !!(linked && linked.adopted);
 
     var summary = [
       ["Bill", bill.name],
@@ -2827,7 +2855,11 @@
     var message;
     var removes = [];
     var keeps = [];
-    if (linked) {
+    if (linked && adopted) {
+      message = "This bill is linked to an expense you recorded yourself. Only the bill is removed. That expense stays as a normal expense.";
+      keeps.push("The expense " + formatMoney(linked.amount) + ", " + formatDate(linked.date) + " (kept as a normal expense)");
+      keeps.push("All other expenses and income");
+    } else if (linked) {
       message = "Deleting this bill will also remove its linked payment expense. Other expenses will remain unchanged.";
       removes.push("Payment expense: " + formatMoney(linked.amount) + ", " + formatDate(linked.date) +
         " (" + categoryName(linked.categoryId) + ")");
@@ -2853,11 +2885,25 @@
       onConfirm: function () {
         var billRec = removeById(data.bills, id);
         if (!billRec) { return; }
-        // The payment is removed only because it carries this bill's id (created for this bill alone)
-        var payRec = linked && linked.billId === id ? removeById(data.transactions, linked.id) : null;
+        // A payment created for this bill alone is removed with it. An adopted expense (the user's own) is only unlinked.
+        var payRec = null;
+        var unlinked = null;
+        if (linked && linked.billId === id) {
+          if (linked.adopted) {
+            linked.billId = "";
+            delete linked.adopted;
+            unlinked = linked;
+          } else {
+            payRec = removeById(data.transactions, linked.id);
+          }
+        }
         commit(payRec ? "Bill and its payment expense deleted." : "Bill deleted.", function () {
           restoreAt(data.bills, billRec);
           if (payRec) { restoreAt(data.transactions, payRec); }
+          if (unlinked && findById(data.transactions, unlinked.id)) {
+            unlinked.billId = id;
+            unlinked.adopted = true;
+          }
           commit("Restored.");
         });
       }
@@ -2867,18 +2913,36 @@
   function toggleBill(id) {
     var bill = findById(data.bills, id);
     if (!bill) { return; }
-    var nowPaid = !bill.paid;
-    var result = syncBillExpense(bill, nowPaid);
-    if (nowPaid) {
-      commit("Bill marked as paid and added to your expenses.");
+    // Repeated taps on the same bill within a moment are ignored, so a double tap can never flip it back
+    if (billBusy[id]) { return; }
+    billBusy[id] = true;
+    setTimeout(function () { delete billBusy[id]; }, 700);
+
+    if (!bill.paid) {
+      markBillPaid(bill, function (kind) {
+        commit(kind === "linked"
+          ? "Bill marked as paid and linked to your existing expense."
+          : "Bill marked as paid and added to your expenses.");
+      });
       return;
     }
+
+    var result = syncBillExpense(bill, false);
     var removed = result.removed;
-    commit(removed ? "Bill marked as unpaid. Its payment expense was removed." : "Bill marked as unpaid.", function () {
+    var unlinked = result.unlinked;
+    var message = removed
+      ? "Bill marked as unpaid. Its payment expense was removed."
+      : unlinked ? "Bill marked as unpaid. Your expense was kept as a normal expense."
+        : "Bill marked as unpaid.";
+    commit(message, function () {
       if (!findById(data.bills, id) || bill.paid) { return; }
       if (removed) { restoreAt(data.transactions, removed); }
+      if (unlinked && findById(data.transactions, unlinked.id)) {
+        unlinked.billId = id;
+        unlinked.adopted = true;
+      }
       bill.paid = true;
-      bill.linkedExpenseId = removed ? removed.item.id : null;
+      bill.linkedExpenseId = removed ? removed.item.id : (unlinked ? unlinked.id : null);
       commit("Restored.");
     });
   }
@@ -3132,7 +3196,7 @@
     if (notifyBox) {
       if (typeof Notification === "undefined") {
         notifyBox.disabled = true;
-        notifyBox.nextElementSibling.querySelector("small").textContent = "Not available in this browser. In-app reminders still work.";
+        notifyBox.nextElementSibling.querySelector("small").textContent = "Not available in this browser.";
       }
       notifyBox.addEventListener("change", function () {
         var box = this;
@@ -3558,7 +3622,18 @@
         case "edit-category": openCategoryForm(id); break;
         case "delete-category": deleteCategory(id); break;
         case "close-form": closeForm(); break;
-        case "close-confirm": closeConfirm(); break;
+        case "close-confirm": {
+          // The Cancel button can carry its own action (for example "Create new expense")
+          var pendingConfirm = currentConfirm;
+          closeConfirm();
+          if (pendingConfirm && typeof pendingConfirm.onCancel === "function") {
+            try { pendingConfirm.onCancel(); } catch (err) {
+              if (window.console && console.error) { console.error("Monetra: cancel action error", err); }
+              showToast("Something went wrong. Please check your records.");
+            }
+          }
+          break;
+        }
         case "export-backup": exportBackup(); break;
         case "export-csv": exportCSV(); break;
         case "restore-backup": $("restore-file").click(); break;
@@ -3583,8 +3658,6 @@
           break;
         }
         case "inline-category-save": saveInlineCategory(el); break;
-        case "review-prev": reviewOffset -= 1; renderAll(); break;
-        case "review-next": if (reviewOffset < 0) { reviewOffset += 1; renderAll(); } break;
         case "toggle-focus": data.settings.focusMode = !data.settings.focusMode; commit(); break;
         default: break;
       }
