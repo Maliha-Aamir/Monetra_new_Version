@@ -21,7 +21,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css?v=4">
-  <script src="script.js?v=4" defer></script>
+  <script src="script.js?v=5" defer></script>
 </head>
 <body>
 
@@ -146,7 +146,7 @@
       </div>
 
       <div id="month-summary" class="card">
-        <h2>This Month</h2>
+        <h2>Monthly Overview</h2>
         <p id="period-label" class="period-label"></p>
         <div class="summary-row">
           <div><span>Total Income</span><strong id="summary-income">--</strong></div>
@@ -220,18 +220,6 @@
         </details>
       </div>
 
-      <div id="review-section" class="card">
-        <div class="card-head">
-          <h2>Monthly Review</h2>
-          <div class="month-nav">
-            <button type="button" id="review-prev" class="btn btn-secondary btn-small" data-action="review-prev" aria-label="Previous month">&lsaquo;</button>
-            <span id="review-period" class="period-label"></span>
-            <button type="button" id="review-next" class="btn btn-secondary btn-small" data-action="review-next" aria-label="Next month">&rsaquo;</button>
-          </div>
-        </div>
-        <div id="review-content"></div>
-      </div>
-
       <div id="alerts-section" class="card">
         <h2>Alerts</h2>
         <div id="alerts-list"></div>
@@ -300,20 +288,19 @@
                 <option value="CAD">CAD - Canadian Dollar</option>
                 <option value="AUD">AUD - Australian Dollar</option>
               </select>
-              <p class="field-hint">Changing currency only changes the symbol. Your amounts are not converted.</p>
+              <p class="field-hint">Symbol only. Amounts are not converted.</p>
             </div>
             <div class="field setting-row">
               <label for="settings-day">Day Start</label>
               <select id="settings-day"></select>
-              <p class="field-hint">The day your budget month begins, for example the day you get paid.</p>
+              <p class="field-hint">The day your budget month begins.</p>
             </div>
             <fieldset class="prefs">
               <legend>Focus &amp; comfort</legend>
-              <label class="check"><input type="checkbox" id="pref-focus"><span>Focus Mode<small>Home shows Safe to Spend, Quick Add and upcoming bills only.</small></span></label>
-              <label class="check"><input type="checkbox" id="pref-large"><span>Larger Text<small>Makes text bigger across the app.</small></span></label>
-              <label class="check"><input type="checkbox" id="pref-motion"><span>Reduced Motion<small>Turns off animations. Follows your device setting until you change it here.</small></span></label>
-              <label class="check"><input type="checkbox" id="pref-notify"><span>Browser reminders<small>Optional. Works only while Monetra is open in your browser.</small></span></label>
-              <p class="field-hint">These switches save instantly on this device.</p>
+              <label class="check"><input type="checkbox" id="pref-focus"><span>Focus Mode<small>Simplifies the Home screen.</small></span></label>
+              <label class="check"><input type="checkbox" id="pref-large"><span>Larger Text<small>Bigger text across the app.</small></span></label>
+              <label class="check"><input type="checkbox" id="pref-motion"><span>Reduced Motion<small>Turns off animations.</small></span></label>
+              <label class="check"><input type="checkbox" id="pref-notify"><span>Browser reminders<small>Alerts while Monetra is open.</small></span></label>
             </fieldset>
             <button type="submit" class="btn btn-primary">Save Settings</button>
           </form>
@@ -322,7 +309,7 @@
 
       <div id="export-section" class="card">
         <h2>Export Data</h2>
-        <p class="muted">Download all your income and expenses as a CSV file. It opens in Excel, Google Sheets and Numbers.</p>
+        <p class="muted">Download income and expenses as a CSV file.</p>
         <div class="button-row">
           <button type="button" class="btn btn-primary" data-action="export-csv">Export CSV</button>
         </div>
@@ -331,7 +318,7 @@
       <div id="backup-section" class="card">
         <h2>Backup &amp; Restore</h2>
         <div id="backup-area">
-          <p class="muted">Your data is stored only in this browser on this device. It is not synced to other devices. Download a backup before you clear your browser data, change browsers or switch devices.</p>
+          <p class="muted">Data is stored only in this browser. Download a backup before clearing browser data or switching devices.</p>
           <div class="button-row">
             <button type="button" class="btn btn-primary" data-action="export-backup">Download Backup</button>
             <button type="button" class="btn btn-secondary" data-action="restore-backup">Restore from Backup</button>
@@ -342,7 +329,7 @@
 
       <div id="reset-section" class="card">
         <h2>Start Fresh / Reset All Data</h2>
-        <p class="muted">Erase every income, expense, bill, budget, goal, category and setting stored in this browser. Resetting or clearing your browser data can permanently remove locally stored information unless you have downloaded a backup. Download one first.</p>
+        <p class="muted">Erases all data in this browser. Download a backup first.</p>
         <div class="button-row">
           <button type="button" class="btn btn-danger" data-action="reset-all">Start Fresh / Reset All Data</button>
         </div>
