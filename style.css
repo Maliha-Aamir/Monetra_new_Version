@@ -293,7 +293,7 @@ strong,
   gap: 0.5rem;
 }
 
-/* Collapsible card (Transaction History) */
+/* Collapsible card */
 .collapse > summary {
   display: flex;
   align-items: center;
@@ -357,6 +357,12 @@ button:hover,
 button:active,
 .btn:active {
   transform: translateY(0);
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: default;
+  transform: none;
 }
 
 .btn-secondary {
@@ -1567,6 +1573,8 @@ input, select, textarea { max-width: 100%; }
 }
 /* ---------- 19. Focus Mode, preferences, reminders ---------- */
 body.focus-mode #home-goals, body.focus-mode #home-budgets, body.focus-mode #month-summary, body.focus-mode .breakdown { display: none; }
+/* Upcoming Bills follow Focus Mode: hidden when Off, shown when On */
+body:not(.focus-mode) #upcoming-bills { display: none; }
 .home-tools { margin: -0.5rem 0 1rem; }
 .reminders { margin-bottom: 1rem; padding: 0.8rem 1rem; background: var(--teal-50); border: 1px solid var(--teal-100); border-radius: var(--radius-sm); }
 .reminders p { margin: 0.15rem 0; }
@@ -1625,3 +1633,12 @@ h2 { font-size: 1.125rem; }
 .empty-title { font-family: var(--font-head); }
 ::placeholder { color: var(--ink-faint); opacity: 1; }
 .btn { letter-spacing: 0.005em; }
+
+/* ---------- 25. Clean text inputs: no dropdown arrow on suggestion fields ---------- */
+input[list] { background-image: none; -webkit-appearance: none; appearance: none; }
+input[list]::-webkit-calendar-picker-indicator,
+input[list]::-webkit-list-button { display: none !important; opacity: 0; pointer-events: none; }
+
+/* ---------- 26. Transaction search ---------- */
+#history-section .field { margin-bottom: 1rem; }
+#history-section input[type="search"] { font-size: 1rem; }
