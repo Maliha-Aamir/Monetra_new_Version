@@ -20,8 +20,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=3">
-  <script src="script.js?v=3" defer></script>
+  <link rel="stylesheet" href="style.css?v=4">
+  <script src="script.js?v=4" defer></script>
 </head>
 <body>
 
@@ -54,7 +54,7 @@
             <select id="setup-day"></select>
           </div>
         </div>
-        <p class="field-hint setup-hint">Defaults: USD ($) and day 1. Change anytime in More &rarr; Settings. Currency only changes the symbol; nothing is converted.</p>
+        <p class="field-hint setup-hint">Defaults: USD ($) and day 1. Change anytime in More. Currency only changes the symbol; nothing is converted.</p>
 
         <details class="setup-optional" id="setup-optional">
           <summary>Add your first income or expense <span class="optional">(optional)</span></summary>
@@ -128,7 +128,7 @@
           <div><span>Left This Period</span><strong id="safe-to-spend-total">--</strong></div>
           <div><span>Days Left</span><strong id="safe-to-spend-days">--</strong></div>
         </div>
-        <p id="safe-to-spend-note">Add your income to see how much you can safely spend each day.</p>
+        <p id="safe-to-spend-note">Add your income to see your daily amount.</p>
         <details class="breakdown">
           <summary>How is this calculated?</summary>
           <div id="safe-to-spend-breakdown"></div>
@@ -201,48 +201,11 @@
       </div>
 
       <div id="history-section" class="card">
-        <details class="collapse" id="history-details" open>
-          <summary><h2>Transaction History</h2></summary>
-          <div class="collapse-body">
-            <div class="filters">
-              <div class="field field-wide">
-                <label for="history-search">Search</label>
-                <input id="history-search" type="search" placeholder="Search by name, category or amount" autocomplete="off">
-              </div>
-              <div class="field">
-                <label for="history-type">Type</label>
-                <select id="history-type">
-                  <option value="">All</option>
-                  <option value="income">Income</option>
-                  <option value="expense">Expenses</option>
-                </select>
-              </div>
-              <div class="field">
-                <label for="history-category">Category</label>
-                <select id="history-category"></select>
-              </div>
-              <div class="field">
-                <label for="history-month">Month</label>
-                <input id="history-month" type="month">
-              </div>
-              <div class="field">
-                <label for="history-from">From</label>
-                <input id="history-from" type="date">
-              </div>
-              <div class="field">
-                <label for="history-to">To</label>
-                <input id="history-to" type="date">
-              </div>
-              <div class="field field-wide">
-                <div class="button-row">
-                  <button type="button" id="history-clear" class="btn btn-secondary btn-small">Clear filters</button>
-                  <button type="button" class="btn btn-secondary btn-small" data-action="export-csv">Export CSV</button>
-                </div>
-              </div>
-            </div>
-            <div id="history-list"></div>
-          </div>
-        </details>
+        <h2>Search Transactions</h2>
+        <div class="field">
+          <input id="history-search" type="search" aria-label="Search transactions" placeholder="Search by name, category or amount" autocomplete="off">
+        </div>
+        <div id="history-list"></div>
       </div>
     </section>
 
@@ -325,10 +288,6 @@
         <div id="settings-area">
           <form id="settings-form" novalidate>
             <div class="field setting-row">
-              <label for="settings-name">Your name <span class="optional">(optional)</span></label>
-              <input id="settings-name" type="text" maxlength="40" autocomplete="given-name">
-            </div>
-            <div class="field setting-row">
               <label for="settings-currency">Currency</label>
               <select id="settings-currency">
                 <option value="USD">USD - US Dollar</option>
@@ -344,13 +303,13 @@
               <p class="field-hint">Changing currency only changes the symbol. Your amounts are not converted.</p>
             </div>
             <div class="field setting-row">
-              <label for="settings-day">Month start day</label>
+              <label for="settings-day">Day Start</label>
               <select id="settings-day"></select>
               <p class="field-hint">The day your budget month begins, for example the day you get paid.</p>
             </div>
             <fieldset class="prefs">
               <legend>Focus &amp; comfort</legend>
-              <label class="check"><input type="checkbox" id="pref-focus"><span>Focus Mode<small>Home shows only Safe to Spend, what is left and upcoming bills.</small></span></label>
+              <label class="check"><input type="checkbox" id="pref-focus"><span>Focus Mode<small>Home shows Safe to Spend, Quick Add and upcoming bills only.</small></span></label>
               <label class="check"><input type="checkbox" id="pref-large"><span>Larger Text<small>Makes text bigger across the app.</small></span></label>
               <label class="check"><input type="checkbox" id="pref-motion"><span>Reduced Motion<small>Turns off animations. Follows your device setting until you change it here.</small></span></label>
               <label class="check"><input type="checkbox" id="pref-notify"><span>Browser reminders<small>Optional. Works only while Monetra is open in your browser.</small></span></label>
@@ -359,17 +318,6 @@
             <button type="submit" class="btn btn-primary">Save Settings</button>
           </form>
         </div>
-      </div>
-
-      <div id="recurring-section" class="card">
-        <details class="collapse">
-          <summary><h2>Manage Recurring</h2></summary>
-          <div class="collapse-body">
-            <p class="muted">A recurring entry adds a real income or expense on each date. Pause it any time. Add one with the Repeat option when you record income or an expense.</p>
-            <div class="button-row"><button type="button" class="btn btn-add btn-small" data-action="add-recurring">Add Recurring</button></div>
-            <div id="recurring-list"></div>
-          </div>
-        </details>
       </div>
 
       <div id="export-section" class="card">
