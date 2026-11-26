@@ -54,6 +54,7 @@
   var lastRenderDay = "";
   var catchUpActive = false;   // true once, when someone returns after a few days away
   var reviewOffset = 0;   // 0 = this budget period, -1 = the one before, ...
+  var formSubmitting = false;   // blocks a second submit while one is being processed
 
   /* ---------------------------------------------------------
      3. SMALL HELPERS
@@ -1002,9 +1003,10 @@
       var d = daysBetween(stats.today, b.dueDate);
       if (d < 0) { over.push(b.name); } else if (d <= 7) { soon.push(b.name + " (" + (d === 0 ? "today" : "in " + plural(d, "day")) + ")"); }
     });
+    var hasIncome = stats.income > 0;
     box.innerHTML = "<h2>Welcome back</h2><p>Here is where things stand today.</p>" +
-      "<p><strong>Safe to Spend:</strong> " + esc(formatMoney(stats.safePerDay)) + " a day</p>" +
-      "<p><strong>Remaining:</strong> " + esc(formatMoney(Math.max(stats.available, 0))) + "</p>" +
+      "<p><strong>Safe to Spend:</strong> " + esc(hasIncome ? formatMoney(stats.safePerDay) + " a day" : "--") + "</p>" +
+      "<p><strong>Remaining:</strong> " + esc(hasIncome ? formatMoney(Math.max(stats.available, 0)) : "--") + "</p>" +
       (soon.length ? "<p><strong>Coming up:</strong> " + esc(soon.join(", ")) + "</p>" : "") +
       (over.length ? "<p><strong>Past due:</strong> " + esc(over.join(", ")) + "</p>" : "") +
       btn("Got it", "dismiss-catchup", "btn-secondary btn-small");
@@ -1016,51 +1018,58 @@
     renderReminders(stats);
     $("home-greeting").innerHTML = '<span class="greet-line">' + esc(greetingText()) + '</span><span class="greet-tag">Manage Money. Find Your Focus.</span>';
 
-    $("safe-to-spend-amount").textContent = formatMoney(stats.safePerDay);
-    $("safe-to-spend-total").textContent = formatMoney(Math.max(stats.available, 0));
-    $("safe-to-spend-days").textContent = String(stats.daysLeft);
+    var hasIncome = stats.income > 0;
     var hasActivity = stats.income > 0 || stats.spent > 0 || stats.unpaidDue > 0 || stats.savingsReserve > 0;
     // Income dated before this budget period is saved, but belongs to an earlier period
     var incomeBeforePeriod = data.transactions.some(function (t) { return t.type === "income" && t.date < stats.period.start; });
+
+    $("safe-to-spend-amount").textContent = formatMoney(stats.safePerDay);
+    $("safe-to-spend-total").textContent = formatMoney(Math.max(stats.available, 0));
+    $("safe-to-spend-days").textContent = String(stats.daysLeft);
+
+    // Short messages. With no income, nothing is compared against a plan.
     var note;
     if (!hasActivity) {
       note = incomeBeforePeriod
-        ? "Your income is dated before this budget period (" + formatPeriod(stats.period) + "), so it is not counted yet. Add income you received during this period to see your daily amount."
-        : "Add your income to see how much you can safely spend each day.";
-    } else if (stats.available <= 0) {
-      note = "Your plan for this period is already full, so nothing is safe to spend today. That is okay. Small steps still count.";
-      if (stats.available < 0) {
-        note += " You are " + formatMoney(-stats.available) + " past this period's plan.";
-      }
+        ? "Your income is dated before this period (" + formatPeriod(stats.period) + "), so it is not counted."
+        : "Add your income to see your daily amount.";
+    } else if (!hasIncome) {
+      note = "No income recorded for this period.";
+    } else if (stats.available < 0) {
+      note = "Over plan by " + formatMoney(-stats.available) + ".";
+    } else if (stats.available === 0) {
+      note = "Nothing left to spend this period.";
     } else {
-      note = "Spread evenly over the rest of this budget period, today included.";
+      note = "Spread evenly over the remaining days.";
     }
     $("safe-to-spend-note").textContent = note;
-    if (!hasActivity) {
+    if (!hasActivity || !hasIncome) {
       $("safe-to-spend-amount").textContent = "--";
       $("safe-to-spend-total").textContent = "--";
     }
 
+    var totalText = hasIncome ? formatMoney(stats.available) : "--";
+    var perDayText = hasIncome ? formatMoney(stats.safePerDay) : "--";
     $("safe-to-spend-breakdown").innerHTML =
       '<div class="breakdown-row"><span>Income received</span><span>+' + formatMoney(stats.income) + "</span></div>" +
       '<div class="breakdown-row"><span>Spent so far</span><span>-' + formatMoney(stats.spent) + "</span></div>" +
       '<div class="breakdown-row"><span>Unpaid bills due by period end</span><span>-' + formatMoney(stats.unpaidDue) + "</span></div>" +
       '<div class="breakdown-row"><span>Savings set aside this period</span><span>-' + formatMoney(stats.savingsReserve) + "</span></div>" +
-      '<div class="breakdown-row total"><span>Total safe to spend</span><span>' + formatMoney(stats.available) + "</span></div>" +
+      '<div class="breakdown-row total"><span>Total safe to spend</span><span>' + totalText + "</span></div>" +
       '<div class="breakdown-row"><span>Days left (today included)</span><span>' + stats.daysLeft + "</span></div>" +
-      '<div class="breakdown-row total"><span>Safe per day</span><span>' + formatMoney(stats.safePerDay) + "</span></div>" +
+      '<div class="breakdown-row total"><span>Safe per day</span><span>' + perDayText + "</span></div>" +
       '<p class="breakdown-note">Only money that has already arrived is counted. Paid bills are already inside "Spent", so they are never counted twice. Savings count only this period\'s plan.</p>';
 
     $("period-label").textContent = "Budget period: " + formatPeriod(stats.period);
     $("summary-income").textContent = formatMoney(stats.income);
     $("summary-spent").textContent = formatMoney(stats.spent);
-    $("summary-left").textContent = formatMoney(stats.left);
-    $("summary-left").parentNode.classList.toggle("is-negative", stats.left < 0);
+    $("summary-left").textContent = hasIncome ? formatMoney(stats.left) : "--";
+    $("summary-left").parentNode.classList.toggle("is-negative", hasIncome && stats.left < 0);
     if (stats.income > 0) {
       var sp = stats.spent / stats.income * 100;
       $("summary-progress").innerHTML = '<p class="field-hint">Spending progress: ' + Math.round(sp) + "% of income spent</p>" + progressHTML(sp, sp >= 100 ? "warn" : "");
     } else if (incomeBeforePeriod) {
-      $("summary-progress").innerHTML = '<p class="field-hint">Income dated before this budget period is not counted here. You can find it in Money, under Transaction History, or change the Month start day in More, then Settings.</p>';
+      $("summary-progress").innerHTML = '<p class="field-hint">Income dated before this budget period is not counted here. You can find it in Money, under Search Transactions, or change the Day Start in More.</p>';
     } else {
       $("summary-progress").innerHTML = "";
     }
@@ -1115,7 +1124,7 @@
   }
 
   /* ---------------------------------------------------------
-     12. RENDER: MONEY (Income, Expenses, Recurring, History)
+     12. RENDER: MONEY (Income, Expenses, Search)
      --------------------------------------------------------- */
   function emptyAddBtn(type) {
     var any = data.transactions.some(function (t) { return t.type === type; });
@@ -1138,7 +1147,7 @@
         "No " + label + " this period yet",
         type === "income"
           ? (datedElsewhere
-            ? "Your income is dated outside this budget period. Search Transaction History below to find it."
+            ? "Your income is dated outside this budget period. Use Search Transactions below to find it."
             : "Record money you received and it will show up here.")
           : "Record what you spent and it will show up here.",
         emptyAddBtn(type)
@@ -1149,14 +1158,18 @@
       ")</span><strong>" + formatMoney(total) + "</strong></p>";
     html += rows.slice(0, MAX_LIST_ROWS).map(transactionRowHTML).join("");
     if (rows.length > MAX_LIST_ROWS) {
-      html += '<p class="muted">Showing the latest ' + MAX_LIST_ROWS + ". Use Transaction History below to search or filter for the rest.</p>";
+      html += '<p class="muted">Showing the latest ' + MAX_LIST_ROWS + ". Use Search Transactions below to find the rest.</p>";
     }
     return html;
   }
 
+  // Recurring entries are no longer managed on a screen. Existing rules keep working
+  // in the background (processRecurring), so old data is never lost.
   function renderRecurring() {
+    var list = $("recurring-list");
+    if (!list) { return; }
     if (data.recurring.length === 0) {
-      $("recurring-list").innerHTML = emptyState(
+      list.innerHTML = emptyState(
         "No recurring entries yet",
         "Add one for things that repeat, like a salary or a monthly subscription."
       );
@@ -1168,7 +1181,7 @@
       return a.nextDate < b.nextDate ? -1 : 1;
     });
 
-    $("recurring-list").innerHTML = sorted.map(function (r) {
+    list.innerHTML = sorted.map(function (r) {
       var isIncome = r.type === "income";
       var title = isIncome ? r.source : categoryName(r.categoryId);
       var nextText = r.active ? "Next: " + formatDate(r.nextDate) : "Paused";
@@ -1189,80 +1202,52 @@
     }).join("");
   }
 
-  function refreshCategoryFilter() {
-    var select = $("history-category");
-    var current = select.value;
-    select.innerHTML = '<option value="">All categories</option>' + sortedCategories().map(function (c) {
-      return '<option value="' + esc(c.id) + '">' + esc(c.name) + "</option>";
-    }).join("");
-    if (current && getCategory(current)) {
-      select.value = current;
-    }
-  }
-
+  // One search box. Nothing is listed until the person types. Matches income and expenses.
   function renderHistory() {
-    var query = $("history-search").value.trim().toLowerCase();
-    var type = $("history-type").value;
-    var category = $("history-category").value;
-    var from = $("history-from").value;
-    var to = $("history-to").value;
-    var month = $("history-month").value;
+    var input = $("history-search");
+    var list = $("history-list");
+    if (!input || !list) { return; }
+    var query = input.value.trim().toLowerCase();
 
     if (data.transactions.length === 0) {
-      $("history-list").innerHTML = emptyState(
+      list.innerHTML = emptyState(
         "No transactions yet",
-        "Everything you add under Income and Expenses will appear here."
+        "Income and expenses you add will be searchable here."
       );
       return;
     }
 
-    // Nothing is listed until the person searches or picks a filter
-    if (!(query || type || category || from || to || month)) {
-      $("history-list").innerHTML = emptyState(
-        "Search or filter to find transactions",
-        "Type in the search box or choose a filter above, and matching income and expenses will appear here."
+    if (!query) {
+      list.innerHTML = emptyState(
+        "Search your transactions",
+        "Type a name, category or amount to find income or expenses."
       );
       return;
     }
 
     var rows = data.transactions.filter(function (t) {
-      if (type && t.type !== type) { return false; }
-      if (category && t.categoryId !== category) { return false; }
-      if (from && t.date < from) { return false; }
-      if (to && t.date > to) { return false; }
-      if (month && t.date.slice(0, 7) !== month) { return false; }
-      if (query) {
-        var haystack = [
-          transactionTitle(t), t.method,
-          t.type === "expense" ? categoryName(t.categoryId) : "",
-          (t.amount / 100).toFixed(2), formatMoney(t.amount)
-        ].join(" ").toLowerCase();
-        if (haystack.indexOf(query) === -1) { return false; }
-      }
-      return true;
+      var haystack = [
+        transactionTitle(t), t.type, t.method || "",
+        t.type === "expense" ? categoryName(t.categoryId) : "",
+        (t.amount / 100).toFixed(2), String(t.amount / 100), formatMoney(t.amount),
+        t.date, formatDate(t.date)
+      ].join(" ").toLowerCase();
+      return haystack.indexOf(query) !== -1;
     }).sort(compareTransactions);
 
     if (rows.length === 0) {
-      $("history-list").innerHTML = emptyState(
-        "Nothing matches your filters",
-        "Try a different search, or tap Clear filters."
+      list.innerHTML = emptyState(
+        "No matching transactions",
+        "Try a different name, category or amount."
       );
       return;
     }
 
-    var incomeTotal = 0;
-    var expenseTotal = 0;
-    rows.forEach(function (t) {
-      if (t.type === "income") { incomeTotal += t.amount; } else { expenseTotal += t.amount; }
-    });
-
-    var html = query ? "" : '<p class="list-summary"><span>' + plural(rows.length, "transaction") + "</span><span>Income " +
-      formatMoney(incomeTotal) + " &middot; Spent " + formatMoney(expenseTotal) + "</span></p>";
-    html += rows.slice(0, MAX_HISTORY_ROWS).map(transactionRowHTML).join("");
+    var html = rows.slice(0, MAX_HISTORY_ROWS).map(transactionRowHTML).join("");
     if (rows.length > MAX_HISTORY_ROWS) {
-      html += '<p class="muted">Showing the latest ' + MAX_HISTORY_ROWS + ". Use the filters to narrow down.</p>";
+      html += '<p class="muted">Showing the latest ' + MAX_HISTORY_ROWS + ". Narrow your search to see the rest.</p>";
     }
-    $("history-list").innerHTML = html;
+    list.innerHTML = html;
   }
 
   function renderMoney(stats) {
@@ -1271,7 +1256,6 @@
     $("expenses-tools").hidden = expensesDeletableInBulk().length === 0;
     $("income-tools").hidden = incomeRecords().length === 0;
     renderRecurring();
-    refreshCategoryFilter();
     renderHistory();
   }
 
@@ -1319,6 +1303,7 @@
       );
       return;
     }
+    var noIncome = cur.income === 0;
     var remaining = cur.income - cur.spent;
     var topId = null;
     Object.keys(cur.byCat).forEach(function (id) {
@@ -1328,15 +1313,17 @@
     var budgeted = 0;
     stats.budgets.forEach(function (b) { planned += b.limit; budgeted += cur.byCat[b.categoryId] || 0; });
 
+    // With no income there is nothing to compare spending with, so no "Beyond income" figure is shown.
     var html = '<p class="review-lead">Your spending overview is ready.</p>' +
       '<div class="summary-row">' +
-      "<div><span>Income</span><strong>" + formatMoney(cur.income) + "</strong></div>" +
+      "<div><span>Income</span><strong>" + (noIncome ? "None recorded" : formatMoney(cur.income)) + "</strong></div>" +
       "<div><span>Spending</span><strong>" + formatMoney(cur.spent) + "</strong></div>" +
-      '<div class="' + (remaining < 0 ? "is-negative" : "") + '"><span>' + (remaining < 0 ? "Beyond income" : "Remaining") +
-      "</span><strong>" + formatMoney(Math.abs(remaining)) + "</strong></div></div>";
+      '<div class="' + (!noIncome && remaining < 0 ? "is-negative" : "") + '"><span>' +
+      (noIncome ? "Remaining" : (remaining < 0 ? "Beyond income" : "Remaining")) + "</span><strong>" +
+      (noIncome ? "--" : formatMoney(Math.abs(remaining))) + "</strong></div></div>";
 
-    if (cur.income === 0) {
-      html += '<p class="review-line">No income is recorded for this period, so there is nothing to compare your spending with. ' +
+    if (noIncome) {
+      html += '<p class="review-line">No income recorded for this period. ' +
         btn("Add Income", "add-income", "btn-add btn-small btn-secondary") + "</p>";
     }
     if (topId !== null && cur.spent > 0) {
@@ -1579,7 +1566,7 @@
   }
 
   /* ---------------------------------------------------------
-     16. RENDER: MORE (categories)
+     16. RENDER: MORE (settings)
      --------------------------------------------------------- */
   function renderMore() {
     var counts = {};
@@ -1614,7 +1601,8 @@
   }
 
   function fillSettingsForm() {
-    $("settings-name").value = data.settings.name;
+    // The name field was removed from More. The saved name is kept untouched.
+    if ($("settings-name")) { $("settings-name").value = data.settings.name; }
     $("settings-currency").value = data.settings.currency;
     $("settings-day").value = String(data.settings.monthStartDay);
   }
@@ -1629,23 +1617,32 @@
     document.body.classList.toggle("focus-mode", st.focusMode);
     $("focus-toggle").textContent = "Focus Mode: " + (st.focusMode ? "On" : "Off");
     $("focus-toggle").setAttribute("aria-pressed", String(st.focusMode));
-    $("pref-focus").checked = st.focusMode;
-    $("pref-large").checked = st.largeText;
-    $("pref-motion").checked = root.classList.contains("reduce-motion");
-    $("pref-notify").checked = notifyEnabled();
+    if ($("pref-focus")) { $("pref-focus").checked = st.focusMode; }
+    if ($("pref-large")) { $("pref-large").checked = st.largeText; }
+    if ($("pref-motion")) { $("pref-motion").checked = root.classList.contains("reduce-motion"); }
+    if ($("pref-notify")) { $("pref-notify").checked = notifyEnabled(); }
+  }
+
+  // Each screen section is drawn on its own, so one failing section can never leave the others out of date
+  function safeRun(name, fn) {
+    try {
+      fn();
+    } catch (error) {
+      if (window.console && console.error) { console.error("Monetra: could not draw " + name, error); }
+    }
   }
 
   function renderAll() {
     var stats = computeStats();
-    applyPreferences();
     lastRenderDay = stats.today;
-    renderHome(stats);
-    renderMoney(stats);
-    renderBudgets(stats);
-    renderBills(stats);
-    renderGoals(stats);
-    renderDebts();
-    renderMore();
+    safeRun("preferences", applyPreferences);
+    safeRun("home", function () { renderHome(stats); });
+    safeRun("money", function () { renderMoney(stats); });
+    safeRun("budgets", function () { renderBudgets(stats); });
+    safeRun("bills", function () { renderBills(stats); });
+    safeRun("goals", function () { renderGoals(stats); });
+    safeRun("debts", renderDebts);
+    safeRun("more", renderMore);
   }
 
   /* ---------------------------------------------------------
@@ -1732,6 +1729,8 @@
 
   function openForm(config) {
     currentForm = config;
+    formSubmitting = false;
+    $("form-submit").disabled = false;
     $("form-title").textContent = config.title;
     $("form-submit").textContent = config.submitLabel || "Save";
     $("form-fields").innerHTML = config.fields.map(fieldHTML).join("");
@@ -1756,6 +1755,11 @@
       if (typeof dialog.close === "function") { dialog.close(); } else { dialog.removeAttribute("open"); }
     }
     currentForm = null;
+    formSubmitting = false;
+    $("form-submit").disabled = false;
+    // Fields are cleared so the next form always starts empty (nothing can be sent twice)
+    $("form-fields").innerHTML = "";
+    $("form-error").hidden = true;
   }
 
   function saveInlineCategory(btnEl) {
@@ -1792,25 +1796,48 @@
         saveInlineCategory(event.target.parentNode.querySelector("button"));
       }
     });
+
+    /* One submit at a time. After a successful save the form closes and its fields are cleared.
+       If something goes wrong while the screen is redrawn AFTER the record was saved, the form
+       still closes, so the same entry can never be added twice by clicking again.
+       Validation errors keep the form open and show the message. */
     $("entry-form").addEventListener("submit", function (event) {
       event.preventDefault();
-      if (!currentForm) { return; }
-      var values = {};
-      currentForm.fields.forEach(function (f) {
-        var el = $("f-" + f.name);
-        values[f.name] = el ? el.value.trim() : "";
-      });
-      var error = currentForm.onSubmit(values);
-      if (error === FORM_PENDING) { return; }
-      if (error) {
-        showFormError(error);
-        return;
+      if (!currentForm || formSubmitting) { return; }
+      formSubmitting = true;
+      $("form-submit").disabled = true;
+
+      var outcome = "done";
+      try {
+        var values = {};
+        currentForm.fields.forEach(function (f) {
+          var el = $("f-" + f.name);
+          values[f.name] = el ? el.value.trim() : "";
+        });
+        var error = currentForm.onSubmit(values);
+        if (error === FORM_PENDING) {
+          outcome = "pending";
+        } else if (error) {
+          showFormError(error);
+          outcome = "error";
+        }
+      } catch (err) {
+        if (window.console && console.error) { console.error("Monetra: form error", err); }
+        showToast("Something went wrong. Please check that your entry was saved.");
+        outcome = "done";
       }
-      closeForm();
+
+      if (outcome === "done") {
+        closeForm();
+      } else {
+        formSubmitting = false;
+        $("form-submit").disabled = false;
+      }
     });
 
     $("form-dialog").addEventListener("close", function () {
       currentForm = null;
+      formSubmitting = false;
     });
   }
 
@@ -1901,9 +1928,18 @@
       event.preventDefault();
       if (!currentConfirm) { return; }
       var cfg = currentConfirm;
+      currentConfirm = null;   // a second click on the button finds nothing to confirm
       var value = cfg.field && $("f-confirm-target") ? $("f-confirm-target").value : null;
-      var error = cfg.onConfirm(value);
+      var error = null;
+      try {
+        error = cfg.onConfirm(value);
+      } catch (err) {
+        if (window.console && console.error) { console.error("Monetra: confirm error", err); }
+        showToast("Something went wrong. Please check your records.");
+        error = null;
+      }
       if (error) {
+        currentConfirm = cfg;
         var box = $("confirm-error");
         box.textContent = error;
         box.hidden = false;
@@ -1920,7 +1956,9 @@
   var AMOUNT_HELP = "Please enter a valid amount, like 2500 or 2500.50.";
 
   /* ---- Income form ---- */
-  // Optional "Repeat": the entry itself is saved as usual, then a rule starts at its next date after today
+  // Optional "Repeat": the entry itself is saved as usual, then a rule starts at its next date after today.
+  // The Repeat control is no longer shown in the forms, so v.repeat is empty and this does nothing.
+  // The function stays so older code paths keep working.
   function addRuleFromEntry(type, v, amount) {
     if (["weekly", "monthly", "yearly"].indexOf(v.repeat) === -1) { return; }
     var anchor = +v.date.slice(8, 10);
@@ -1969,7 +2007,7 @@
         { name: "amount", label: "Amount", type: "money", value: t ? centsToInput(t.amount) : "", hint: "In " + data.settings.currency },
         { name: "source", label: "Income source", type: "text", value: t ? t.source : "", placeholder: "For example: Salary", suggestions: sources, maxlength: 60 },
         { name: "date", label: "Date", type: "date", value: t ? t.date : todayStr(), max: todayStr() }
-      ].concat(t ? [] : [{ name: "repeat", label: "Repeat", type: "select", value: "none", options: [{ value: "none", label: "Does not repeat" }, { value: "weekly", label: "Weekly" }, { value: "monthly", label: "Monthly" }, { value: "yearly", label: "Yearly" }], hint: "Optional. The next date is added automatically when it arrives." }]),
+      ],
       onSubmit: function (v) {
         var amount = parseMoney(v.amount);
         if (amount === null) { return AMOUNT_HELP; }
@@ -1990,8 +2028,7 @@
               id: uid(), type: "income", amount: amount, source: v.source,
               date: v.date, createdAt: Date.now()
             });
-            addRuleFromEntry("income", v, amount);
-            commit("Income added." + outsideNote + (v.repeat && v.repeat !== "none" ? " It will repeat " + v.repeat + "." : ""));
+            commit("Income added." + outsideNote);
           }
         }
 
@@ -2012,8 +2049,8 @@
               matchesTitle: "Similar recurring income",
               matches: matches,
               onConfirm: function () {
-                save();
                 closeForm();
+                save();
               }
             });
             return FORM_PENDING;
@@ -2054,7 +2091,7 @@
         { name: "date", label: "Date", type: "date", value: t ? t.date : todayStr(), max: todayStr() },
         { name: "method", label: "Payment method", type: "select", value: t ? t.method : lastExpenseDefault("method"),
           options: PAYMENT_METHODS.map(function (m) { return { value: m, label: m }; }) }
-      ].concat(t ? [] : [{ name: "repeat", label: "Repeat", type: "select", value: "none", options: [{ value: "none", label: "Does not repeat" }, { value: "weekly", label: "Weekly" }, { value: "monthly", label: "Monthly" }, { value: "yearly", label: "Yearly" }], hint: "Optional. The next date is added automatically when it arrives." }]),
+      ],
       onSubmit: function (v) {
         var amount = parseMoney(v.amount);
         if (amount === null) { return AMOUNT_HELP; }
@@ -2073,10 +2110,9 @@
               matchesTitle: "Similar recurring expense",
               matches: dupes,
               onConfirm: function () {
-                data.transactions.push({ id: uid(), type: "expense", amount: amount, categoryId: v.categoryId, date: v.date, method: v.method, createdAt: Date.now() });
-                addRuleFromEntry("expense", v, amount);
-                commit("Expense added.");
                 closeForm();
+                data.transactions.push({ id: uid(), type: "expense", amount: amount, categoryId: v.categoryId, date: v.date, method: v.method, createdAt: Date.now() });
+                commit("Expense added.");
               }
             });
             return FORM_PENDING;
@@ -2091,15 +2127,14 @@
             id: uid(), type: "expense", amount: amount, categoryId: v.categoryId,
             date: v.date, method: v.method, createdAt: Date.now()
           });
-          addRuleFromEntry("expense", v, amount);
-          commit(v.repeat && v.repeat !== "none" ? "Expense added. It will repeat " + v.repeat + "." : "Expense added.");
+          commit("Expense added.");
         }
         return null;
       }
     });
   }
 
-  /* ---- Recurring form ---- */
+  /* ---- Recurring form (kept for existing rules) ---- */
   function openRecurringForm(type, id) {
     var r = id ? findById(data.recurring, id) : null;
     if (id && !r) { return; }
@@ -2178,8 +2213,8 @@
               matchesTitle: "Similar income already recorded",
               matches: matches,
               onConfirm: function () {
-                save();
                 closeForm();
+                save();
               }
             });
             return FORM_PENDING;
@@ -2249,6 +2284,7 @@
           commit("Budget updated.");
         } else {
           if (!getCategory(v.categoryId)) { return "Please choose a category."; }
+          // Only a real, saved budget for this exact category counts as "already exists"
           var duplicate = data.budgets.some(function (x) { return x.categoryId === v.categoryId; });
           if (duplicate) { return "This category already has a budget. Edit it instead."; }
           data.budgets.push({ id: uid(), categoryId: v.categoryId, limit: limit });
@@ -2354,7 +2390,7 @@
     });
   }
 
-  /* ---- Goal forms ---- */
+  /* ---- Debt forms ---- */
   function openDebtForm(id) {
     var d = id ? findById(data.debts, id) : null;
     if (id && !d) { return; }
@@ -2473,6 +2509,7 @@
     });
   }
 
+  /* ---- Goal forms ---- */
   function openGoalForm(id) {
     var g = id ? findById(data.goals, id) : null;
     if (id && !g) { return; }
@@ -2670,7 +2707,7 @@
 
     var keeps = ["All your expenses", "Your bills, budgets, savings goals and debts"];
     if (activeRules) {
-      keeps.push(plural(activeRules, "active recurring income rule") + ". Future dates will still be added. Pause or delete the rule in Recurring to stop that");
+      keeps.push(plural(activeRules, "active recurring income rule") + ". Future dates will still be added");
     }
 
     openConfirm({
@@ -3081,7 +3118,7 @@
   }
 
   /* ---------------------------------------------------------
-     20. SETTINGS
+     20. SETTINGS (Currency, Day Start, comfort switches)
      --------------------------------------------------------- */
   function setupSettings() {
     var daySelect = $("settings-day");
@@ -3092,21 +3129,25 @@
     daySelect.innerHTML = html;
 
     var notifyBox = $("pref-notify");
-    if (typeof Notification === "undefined") {
-      notifyBox.disabled = true;
-      notifyBox.nextElementSibling.querySelector("small").textContent = "Not available in this browser. In-app reminders still work.";
-    }
-    notifyBox.addEventListener("change", function () {
-      var box = this;
-      if (!box.checked) { lsSet("monetra.notify", "0"); return; }
-      Notification.requestPermission().then(function (p) {
-        if (p === "granted") { lsSet("monetra.notify", "1"); showToast("Browser reminders are on while Monetra is open."); }
-        else { box.checked = false; lsSet("monetra.notify", "0"); showToast("No permission given. In-app reminders still work."); }
+    if (notifyBox) {
+      if (typeof Notification === "undefined") {
+        notifyBox.disabled = true;
+        notifyBox.nextElementSibling.querySelector("small").textContent = "Not available in this browser. In-app reminders still work.";
+      }
+      notifyBox.addEventListener("change", function () {
+        var box = this;
+        if (!box.checked) { lsSet("monetra.notify", "0"); return; }
+        Notification.requestPermission().then(function (p) {
+          if (p === "granted") { lsSet("monetra.notify", "1"); showToast("Browser reminders are on while Monetra is open."); }
+          else { box.checked = false; lsSet("monetra.notify", "0"); showToast("No permission given. In-app reminders still work."); }
+        });
       });
-    });
+    }
 
     [["pref-focus", "focusMode"], ["pref-large", "largeText"], ["pref-motion", "reducedMotion"]].forEach(function (p) {
-      $(p[0]).addEventListener("change", function () {
+      var box = $(p[0]);
+      if (!box) { return; }
+      box.addEventListener("change", function () {
         data.settings[p[1]] = this.checked;
         commit();
       });
@@ -3120,7 +3161,7 @@
         showToast("Please check your settings and try again.");
         return;
       }
-      data.settings.name = $("settings-name").value.trim().slice(0, 40);
+      if ($("settings-name")) { data.settings.name = $("settings-name").value.trim().slice(0, 40); }
       data.settings.currency = currency;
       data.settings.monthStartDay = day;
       commit("Settings saved.");
@@ -3557,19 +3598,8 @@
       }
     });
 
+    // One search box: results appear only while something is typed
     $("history-search").addEventListener("input", renderHistory);
-    ["history-type", "history-category", "history-month", "history-from", "history-to"].forEach(function (id) {
-      $(id).addEventListener("change", renderHistory);
-    });
-    $("history-clear").addEventListener("click", function () {
-      $("history-search").value = "";
-      $("history-type").value = "";
-      $("history-category").value = "";
-      $("history-from").value = "";
-      $("history-to").value = "";
-      $("history-month").value = "";
-      renderHistory();
-    });
 
     // When the app is opened again (maybe on a new day), refresh the numbers
     document.addEventListener("visibilitychange", function () {
